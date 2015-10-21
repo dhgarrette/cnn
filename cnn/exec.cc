@@ -69,6 +69,10 @@ const Tensor& SimpleExecutionEngine::incremental_forward(VariableIndex i) {
       }
       node->aux_mem = aux_mem;
       node->forward(xs, nfxs[num_nodes_evaluated]);
+
+      // log that we evaluated the node
+      vector<string> var_names; for (auto arg : node->args) var_names.push_back(string("v") + to_string((unsigned)arg));
+      cerr << "sigjaioejas   incremental_forward(): evaluated node v" << num_nodes_evaluated << "  " << node->as_string(var_names) << endl;
     }
   }
   return nfxs[i];

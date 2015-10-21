@@ -83,6 +83,8 @@ struct ComputationGraph {
   // run forward pass from the last computed node to last existing.
   // useful if you want to add nodes and evaluate just the new parts.
   const Tensor& incremental_forward();
+  const Tensor& forward(VariableIndex i);
+  const Tensor& incremental_forward(VariableIndex i);
   // get forward value for node at index i. used cached values if available,
   // performs forward evaluation if note available (may compute more than strictly
   // what is needed).
