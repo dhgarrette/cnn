@@ -52,26 +52,25 @@ int main(int argc, char** argv) {
   cout << "y_pred = " << y_pred.i << endl;
   cout << "loss = " << loss.i << endl;
   cout << "cg.nodes.size() = " << cg.nodes.size() << endl;
-  cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl;
   cout << endl;
 
-  cout << "TEST cg.forward()" << endl; cg.forward(); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.incremental_forward()" << endl; cg.incremental_forward(); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.invalidate()" << endl; cg.invalidate(); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.incremental_forward()" << endl; cg.incremental_forward(); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.forward(h)" << endl; cg.forward(h.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.incremental_forward(y_pred)" << endl; cg.incremental_forward(y_pred.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(b)" << endl; cg.get_value(b.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(loss)" << endl; cg.get_value(loss.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(W)" << endl; cg.get_value(W.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.invalidate()" << endl; cg.invalidate(); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(y_pred)" << endl; cg.get_value(y_pred.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(h)" << endl; cg.get_value(h.i); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
+  cout << "TEST cg.forward()" << endl; cg.forward(); cout << endl;
+  cout << "TEST cg.incremental_forward()" << endl; cg.incremental_forward(); cout << endl;
+  cout << "TEST cg.invalidate()" << endl; cg.invalidate(); cout << endl;
+  cout << "TEST cg.incremental_forward()" << endl; cg.incremental_forward(); cout << endl;
+  cout << "TEST cg.forward(h)" << endl; cg.forward(h.i); cout << endl;
+  cout << "TEST cg.incremental_forward(y_pred)" << endl; cg.incremental_forward(y_pred.i); cout << endl;
+  cout << "TEST cg.get_value(b)" << endl; cg.get_value(b.i); cout << endl;
+  cout << "TEST cg.get_value(loss)" << endl; cg.get_value(loss.i); cout << endl;
+  cout << "TEST cg.get_value(W)" << endl; cg.get_value(W.i); cout << endl;
+  cout << "TEST cg.invalidate()" << endl; cg.invalidate(); cout << endl;
+  cout << "TEST cg.get_value(y_pred)" << endl; cg.get_value(y_pred.i); cout << endl;
+  cout << "TEST cg.get_value(h)" << endl; cg.get_value(h.i); cout << endl;
 
 
-  cout << "TEST cg.forward(20)" << endl; cg.forward((VariableIndex) 20); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.incremental_forward(20)" << endl; cg.incremental_forward((VariableIndex) 20); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
-  cout << "TEST cg.get_value(20)" << endl; cg.get_value((VariableIndex) 20); cout << "cg.last_node_evaluated = " << (unsigned)(cg.last_node_evaluated) << endl; cout << endl;
+  cout << "TEST cg.forward(20)" << endl; cg.forward((VariableIndex) 20); cout << endl;
+  cout << "TEST cg.incremental_forward(20)" << endl; cg.incremental_forward((VariableIndex) 20); cout << endl;
+  cout << "TEST cg.get_value(20)" << endl; cg.get_value((VariableIndex) 20); cout << endl;
 
 
 
