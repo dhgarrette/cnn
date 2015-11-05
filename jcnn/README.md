@@ -17,7 +17,6 @@ g++ -fPIC -c build/cnn/dict_wrap.cc -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BO
 g++ -shared build/cnn/dict_wrap.o ../build/cnn/libcnn_shared.dylib -o build/libjcnn.dylib
 
 
-<!-- 
 import os
 cnn_dir = "/u/dhg/workspace/cnn/cnn/"
 header_names = [f[:-2] for f in os.listdir(cnn_dir) if f.endswith(".h")]
@@ -33,19 +32,30 @@ for name in header_names:
 # for k,vs in dep_map.iteritems():
 #   print k, vs
 
-agenda = header_names[::]
+# agenda = header_names[::]
+agenda = [k for k,v in sorted(((k,v) for (k,v) in sorted(dep_map.iteritems())), key=lambda t: len(t[1]))][::]
+#print 'initial agenda:', agenda
 ordered_header_names = []
+head_queue = []
 while agenda:
-  name = agenda.pop()
+  name = agenda[0]
+  agenda = agenda[1:]
   deps = dep_map[name]
   if deps.issubset(set(ordered_header_names)):
     ordered_header_names.append(name)
+    agenda = head_queue + agenda
+    head_queue = []
   else:
-    agenda.insert(0, name)
+    head_queue.append(name)
+#  print 'agenda:', agenda
+#  print 'head_queue:', head_queue
+#  print 'ordered_header_names:', ordered_header_names
+    
+    
+#for name in ordered_header_names:
+#  print name, dep_map[name]
 
-# for name in ordered_header_names:
-#   print name, dep_map[name]
-
+<!-- 
 with open('/u/dhg/workspace/cnn/jcnn/build/cnn/cnn.i', 'w') as f:
   f.write("""%module cnn
 %{\n
@@ -61,12 +71,39 @@ with open('/u/dhg/workspace/cnn/jcnn/build/cnn/cnn.i', 'w') as f:
 
   swig -c++ -java -package $CNN_PACKAGE -outdir $packageWithSlashes -o build/cnn/cnn_wrap.cc build/cnn/cnn.i
 
-  swig -c++ -java -package $CNN_PACKAGE -outdir $packageWithSlashes -o build/cnn/${name}_wrap.cc build/cnn/${name}.i
-  g++ -std=c++0x -fPIC -c build/cnn/${name}_wrap.cc -I$CNN_DIR -I$EIGEN_DIR -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/include -o build/cnn/${name}_wrap.o
-  g++ -shared build/cnn/${name}_wrap.o $CNN_DIR/build/cnn/libcnn_shared.dylib -o build/libjcnn.dylib
-  
+  #swig -c++ -java -package $CNN_PACKAGE -outdir $packageWithSlashes -o build/cnn/${name}_wrap.cc build/cnn/${name}.i
+  #g++ -std=c++0x -fPIC -c build/cnn/${name}_wrap.cc -I$CNN_DIR -I$EIGEN_DIR -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/include -o build/cnn/${name}_wrap.o
+  #g++ -shared build/cnn/${name}_wrap.o $CNN_DIR/build/cnn/libcnn_shared.dylib -o build/libjcnn.dylib
 done
  -->
+
+
+for name in ordered_header_names:
+  print 'name=' + name
+  with open('/u/dhg/workspace/cnn/jcnn/build/cnn/'+name+'.i', 'w') as f:
+    f.write("""%module """+name.replace('-','_')+"""_module
+%{
+
+#include \"../../../cnn/"""+name+""".h\"
+
+%}
+
+%include \"std_string.i\"
+
+%include \"../../../cnn/"""+name+""".h\"
+""")
+
+
+  #swig -c++ -java -package $CNN_PACKAGE -outdir $packageWithSlashes -o build/cnn/${name}_wrap.cc build/cnn/${name}.i
+  #g++ -std=c++0x -fPIC -c build/cnn/${name}_wrap.cc -I$CNN_DIR -I$EIGEN_DIR -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/include -o build/cnn/${name}_wrap.o
+  #g++ -shared build/cnn/${name}_wrap.o $CNN_DIR/build/cnn/libcnn_shared.dylib -o build/libjcnn.dylib
+
+
+
+
+
+
+
 
 
 
@@ -135,5 +172,91 @@ java -cp .:build/src/main/java -Djava.library.path=$CNN_DIR/jcnn/build DictTest
 
 
 g++ -fPIC -c dict_wrap.cc -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/include
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+cnn-helper
+dict
+
+dim
+%ignore cnn::Dim::Dim(std::initializer_list<long>);
+%rename(op_lookup) operator [];
+%rename(op_equals) operator ==;
+%rename(op_notequals) operator !=;
+%rename(op_double_lessthan) operator <<;
+
+name=except
+build/cnn/../../../cnn/except.h:9: Warning 401: Nothing known about base class 'std::runtime_error'. Ignored.
+build/cnn/../../../cnn/except.h:17: Warning 401: Nothing known about base class 'std::logic_error'. Ignored.
+build/cnn/../../../cnn/except.h:23: Warning 401: Nothing known about base class 'std::runtime_error'. Ignored.
+
+functors
+%rename(op_apply) operator ();
+
+gpu-ops
+grad-check
+graph
+init
+random
+rnn-state-machine
+saxe-init
+timing
+cuda
+XXXXX name=gpu-kernels
+aligned-mem-pool
+
+name=tensor
+REMOVE CUDA STUFF
+%rename(op_double_lessthan) operator <<;
+
+name=model
+
+
+name=shadow-params
+name=training
+name=cnn
+name=conv
+name=exec
+name=nodes
+name=conll-2005
+name=dhg-util
+name=expr
+name=param-nodes
+name=rnn
+name=gru
+name=deep-lstm
+name=lstm
+name=c2w
+name=treelstm
+name=srl-viterbi
+
+
+
+dim.i:
+
+
 
 
