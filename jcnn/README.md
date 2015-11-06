@@ -232,25 +232,25 @@ name=tensor
 REMOVE CUDA STUFF
 %rename(op_double_lessthan) operator <<;
 
-name=model
+XXXXX name=model
 
 
 name=shadow-params
 name=training
-name=cnn
-name=conv
+XXXX name=cnn
+XXXX name=conv  -- don't understand Node
 name=exec
-name=nodes
+XXXX name=nodes  -- don't understand Node
 name=conll-2005
 name=dhg-util
-name=expr
-name=param-nodes
-name=rnn
-name=gru
-name=deep-lstm
-name=lstm
+XXXX name=expr  -- operators
+XXXXname=param-nodes  -- don't understand Node; overloaded
+XXXX name=rnn
+XXXX name=gru   -- don't know about RNNBuilder
+XXXX name=deep-lstm   -- don't know about RNNBuilder
+XXXX name=lstm   -- don't know about RNNBuilder
 name=c2w
-name=treelstm
+XXXX name=treelstm   -- don't know about RNNBuilder
 name=srl-viterbi
 
 
