@@ -6,6 +6,7 @@ export JAVA_BIN=$JAVA_HOME/bin
 export CNN_DIR=$HOME/workspace/cnn
 export EIGEN_DIR=$HOME/workspace/eigen
 export CNN_PACKAGE=edu.cmu.cs.clab.cnn
+export BOOST_ROOT=/usr/local/Cellar/boost/1.58.0
 export packageWithSlashes=build/src/main/java/`echo $CNN_PACKAGE | sed -e 's/\./\//g'`
 
 
@@ -56,7 +57,7 @@ while agenda:
 #  print name, dep_map[name]
 
 <!-- 
-with open('/u/dhg/workspace/cnn/jcnn/build/cnn/cnn.i', 'w') as f:
+with open('/u/dhg/workspace/cnn/jcnn/build/cnn/jcnn.i', 'w') as f:
   f.write("""%module cnn
 %{\n
 """)
@@ -198,10 +199,10 @@ g++ -fPIC -c dict_wrap.cc -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/i
 
 
 
-cnn-helper
-dict
+name=cnn-helper
+name=dict
 
-dim
+name=dim
 %ignore cnn::Dim::Dim(std::initializer_list<long>);
 %rename(op_lookup) operator [];
 %rename(op_equals) operator ==;
@@ -213,56 +214,129 @@ build/cnn/../../../cnn/except.h:9: Warning 401: Nothing known about base class '
 build/cnn/../../../cnn/except.h:17: Warning 401: Nothing known about base class 'std::logic_error'. Ignored.
 build/cnn/../../../cnn/except.h:23: Warning 401: Nothing known about base class 'std::runtime_error'. Ignored.
 
-functors
+name=functors
 %rename(op_apply) operator ();
 
-gpu-ops
-grad-check
-graph
-init
-random
-rnn-state-machine
-saxe-init
-timing
-cuda
-XXXXX name=gpu-kernels
-aligned-mem-pool
+name=gpu-ops
+name=grad-check
+name=graph
+name=init
+name=random
+name=rnn-state-machine
+name=saxe-init
+name=timing
+name=cuda
+
+name=gpu-kernels
+-- remove "__global__" from gpu-kernels.h
+
+name=aligned-mem-pool
 
 name=tensor
-REMOVE CUDA STUFF
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/split_member.hpp"
+%rename(times) operator *;
+%rename("times_nonconst") cnn::Tensor::operator *() const;
 %rename(op_double_lessthan) operator <<;
 
-XXXXX name=model
+name=model
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/split_member.hpp"
 
 
 name=shadow-params
 name=training
-XXXX name=cnn
-XXXX name=conv  -- don't understand Node
+
+name=cnn
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/strong_typedef.hpp"
+%rename(op_equals) operator ==;
+%rename(op_assign) operator =;
+%rename(op_lessthan) operator <;
+%rename(op_and) operator unsigned&;
+%rename(op_and_const) operator const unsigned&;
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+-- has a warning that i think is ignorable
+
+name=conv  -- don't understand Node
+%include "../../../cnn/cnn.h"
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/strong_typedef.hpp"
+%rename(op_equals) operator ==;
+%rename(op_assign) operator =;
+%rename(op_lessthan) operator <;
+%rename(op_and) operator unsigned&;
+%rename(op_and_const) operator const unsigned&;
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+
 name=exec
+
 XXXX name=nodes  -- don't understand Node
+%include "../../../cnn/cnn.h"
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/strong_typedef.hpp"
+%rename(op_equals) operator ==;
+%rename(op_assign) operator =;
+%rename(op_lessthan) operator <;
+%rename(op_and) operator unsigned&;
+%rename(op_and_const) operator const unsigned&;
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+%rename("add_input_constPtr") cnn::ComputationGraph::add_input(real const *);
+
 name=conll-2005
 name=dhg-util
 
-XXXX name=expr  -- operators
+XXXX name=expr
 %rename(plus) operator +;
 %rename(minus) operator -;
 %rename(times) operator *;
 %rename(divided_by) operator /;
 %rename("input_constPtr") cnn::expr::input(ComputationGraph &,real const *);
 
-XXXXname=param-nodes  -- don't understand Node; overloaded
-XXXX name=rnn
+XXXX name=param-nodes  -- don't understand Node; overloaded
+
+name=rnn
+%include "/usr/local/Cellar/boost/1.58.0/include/boost/serialization/strong_typedef.hpp"
+%rename(op_equals) operator ==;
+%rename(op_assign) operator =;
+%rename(op_lessthan) operator <;
+%rename(op_const_intaddr) operator const int&;
+%rename(op_intaddr) operator int&;
+-- has a warning that i think is ignorable
+
 XXXX name=gru   -- don't know about RNNBuilder
 XXXX name=deep-lstm   -- don't know about RNNBuilder
 XXXX name=lstm   -- don't know about RNNBuilder
+
 name=c2w
+
 XXXX name=treelstm   -- don't know about RNNBuilder
+
 name=srl-viterbi
 
 
 
 dim.i:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## jcnn.i
+-- gpu-ops.h: remove `softmax` definition
+
+
+
+
 
 
 
