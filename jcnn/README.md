@@ -338,6 +338,20 @@ dim.i:
 
 
 
+export JAVA_INCLUDE=$JAVA_HOME/include
+export BOOST_ROOT=/usr/local/Cellar/boost/1.58.0
+export CNN_DIR=$HOME/workspace/cnn
+export EIGEN_DIR=$HOME/workspace/eigen
+
+swig -c++ -java -package edu.cmu.cs.clab.cnn -outdir src/main/java/edu/cmu/cs/clab/cnn -o jcnn_wrap.cc jcnn.i
+g++ -fPIC -std=c++11 -c jcnn_wrap.cc -I$CNN_DIR -I$EIGEN_DIR -I$JAVA_INCLUDE -I$JAVA_INCLUDE/darwin -I$BOOST_ROOT/include -o jcnn_wrap.o
+g++ -shared build/cnn/jcnn_wrap.o ../build/cnn/libcnn_shared.dylib -o build/libjcnn.dylib
+
+javac -cp .:src/main/java DictTest.java
+java -cp .:src/main/java -Djava.library.path=$CNN_DIR/jcnn DictTest
+
+
+
 
 
 
