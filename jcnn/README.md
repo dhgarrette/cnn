@@ -243,7 +243,14 @@ name=exec
 XXXX name=nodes  -- don't understand Node
 name=conll-2005
 name=dhg-util
+
 XXXX name=expr  -- operators
+%rename(plus) operator +;
+%rename(minus) operator -;
+%rename(times) operator *;
+%rename(divided_by) operator /;
+%rename("input_constPtr") cnn::expr::input(ComputationGraph &,real const *);
+
 XXXXname=param-nodes  -- don't understand Node; overloaded
 XXXX name=rnn
 XXXX name=gru   -- don't know about RNNBuilder
