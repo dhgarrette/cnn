@@ -7,6 +7,7 @@ namespace cnn {
 
 // y = min{x_1, x_2}
 struct Min : public Node {
+  Min() : Node() { throw std::runtime_error("The default constructor of Min should not be used"); }
   explicit Min(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -21,6 +22,7 @@ struct Min : public Node {
 
 // y = max{x_1, x_2}
 struct Max : public Node {
+  Max() : Node() { throw std::runtime_error("The default constructor of Max should not be used"); }
   template <typename T> explicit Max(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -35,6 +37,7 @@ struct Max : public Node {
 
 // y = Tr(x_1 * x_2^T)
 struct TraceOfProduct : public Node {
+  TraceOfProduct() : Node() { throw std::runtime_error("The default constructor of TraceOfProduct should not be used"); }
   explicit TraceOfProduct(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -48,6 +51,7 @@ struct TraceOfProduct : public Node {
 
 // y = alpha * x_1
 struct ConstScalarMultiply : public Node {
+  ConstScalarMultiply() : Node() { throw std::runtime_error("The default constructor of ConstScalarMultiply should not be used"); }
   explicit ConstScalarMultiply(const std::initializer_list<VariableIndex>& a, float alpha) : Node(a), alpha(alpha) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -62,6 +66,7 @@ struct ConstScalarMultiply : public Node {
 
 // y = x_1^T . x_2
 struct DotProduct : public Node {
+  DotProduct() : Node() { throw std::runtime_error("The default constructor of DotProduct should not be used"); }
   explicit DotProduct(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -77,6 +82,7 @@ struct DotProduct : public Node {
 // NOTE: if you have a column or row vector as input, runtime is constant
 // if you have a matrix as input, the runtime is O(mn) - try to avoid using this
 struct Transpose : public Node {
+  Transpose() : Node() { throw std::runtime_error("The default constructor of Transpose should not be used"); }
   explicit Transpose(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -90,6 +96,7 @@ struct Transpose : public Node {
 
 // y = reshape(x_1, --> to)
 struct Reshape : public Node {
+  Reshape() : Node() { throw std::runtime_error("The default constructor of Reshape should not be used"); }
   explicit Reshape(const std::initializer_list<VariableIndex>& a, const Dim& to) : Node(a), to(to) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -106,6 +113,7 @@ struct Reshape : public Node {
 // y_i = \sum_j x_i,j
 // if you want to reweight the columns and then sum them, use MatrixMultiply
 struct SumColumns : public Node {
+  SumColumns() : Node() { throw std::runtime_error("The default constructor of SumColumns should not be used"); }
   template <typename T> explicit SumColumns(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -119,6 +127,7 @@ struct SumColumns : public Node {
 
 // y_i = \sum_{j=1}^n x_1:{i-1+j}
 struct KMHNGram : public Node {
+  KMHNGram() : Node() { throw std::runtime_error("The default constructor of KMHNGram should not be used"); }
   explicit KMHNGram(const std::initializer_list<VariableIndex>& a, unsigned n) : Node(a), n(n) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -153,6 +162,7 @@ struct InnerProduct3D_1D : public Node {
 // n_{i,j} ~ N(0,stddev)
 // y = x + n
 struct GaussianNoise : public Node {
+  GaussianNoise() : Node() { throw std::runtime_error("The default constructor of GaussianNoise should not be used"); }
   explicit GaussianNoise(const std::initializer_list<VariableIndex>& a, real stddev) : Node(a), stddev(stddev) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -168,6 +178,7 @@ struct GaussianNoise : public Node {
 
 // y = dropout(x,p) where p specifies the dropout probability
 struct Dropout : public Node {
+  Dropout() : Node() { throw std::runtime_error("The default constructor of Dropout should not be used"); }
   explicit Dropout(const std::initializer_list<VariableIndex>& a, real p) : Node(a), p(p) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -183,6 +194,7 @@ struct Dropout : public Node {
 
 // y = block_dropout(x,p) where p specifies the probability for dropping-out the entire block
 struct BlockDropout : public Node {
+  BlockDropout() : Node() { throw std::runtime_error("The default constructor of BlockDropout should not be used"); }
   explicit BlockDropout(const std::initializer_list<VariableIndex>& a, real p) : Node(a), dropout_probability(p) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -199,6 +211,7 @@ struct BlockDropout : public Node {
 // y = c + x_1
 // (c is a vector or matrix of the constant, usually 1, but can be configured)
 struct ConstantPlusX : public Node {
+  ConstantPlusX() : Node() { throw std::runtime_error("The default constructor of ConstantPlusX should not be used"); }
   explicit ConstantPlusX(const std::initializer_list<VariableIndex>& a, real o) : Node(a), c(o) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -214,6 +227,7 @@ struct ConstantPlusX : public Node {
 // y = c - x_1
 // (c is a vector or matrix of the constant, usually 1, but can be configured)
 struct ConstantMinusX : public Node {
+  ConstantMinusX() : Node() { throw std::runtime_error("The default constructor of ConstantMinusX should not be used"); }
   explicit ConstantMinusX(const std::initializer_list<VariableIndex>& a, real o) : Node(a), c(o) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -228,6 +242,7 @@ struct ConstantMinusX : public Node {
 
 // y = tanh x_1
 struct Tanh : public Node {
+  Tanh() : Node() { throw std::runtime_error("The default constructor of Tanh should not be used"); }
   explicit Tanh(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -241,6 +256,7 @@ struct Tanh : public Node {
 
 // y = x_1 \odot x_1
 struct Square : public Node {
+  Square() : Node() { throw std::runtime_error("The default constructor of Square should not be used"); }
   explicit Square(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -254,6 +270,7 @@ struct Square : public Node {
 
 // y = x_1 \odot x_1 \odot x_1
 struct Cube : public Node {
+  Cube() : Node() { throw std::runtime_error("The default constructor of Cube should not be used"); }
   explicit Cube(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -267,6 +284,7 @@ struct Cube : public Node {
 
 // y = exp x_1
 struct Exp : public Node {
+  Exp() : Node() { throw std::runtime_error("The default constructor of Exp should not be used"); }
   explicit Exp(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -280,6 +298,7 @@ struct Exp : public Node {
 
 // y = log x_1  (base e, i.e., natural log)
 struct Log : public Node {
+  Log() : Node() { throw std::runtime_error("The default constructor of Log should not be used"); }
   explicit Log(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -293,6 +312,7 @@ struct Log : public Node {
 
 // concatenate rows
 struct Concatenate : public Node {
+  Concatenate() : Node() { throw std::runtime_error("The default constructor of Concatenate should not be used"); }
   template <typename T> explicit Concatenate(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -310,6 +330,7 @@ struct Concatenate : public Node {
 // concatenate column vectors into a matrix
 // x_i must be a column vector in R^n
 struct ConcatenateColumns : public Node {
+  ConcatenateColumns() : Node() { throw std::runtime_error("The default constructor of ConcatenateColumns should not be used"); }
   template <typename T> explicit ConcatenateColumns(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -326,6 +347,7 @@ struct ConcatenateColumns : public Node {
 // x_2 is a scalar (or row vector)
 // y = max(0, margin - x_1 + x_2)
 struct PairwiseRankLoss : public Node {
+  PairwiseRankLoss() : Node() { throw std::runtime_error("The default constructor of PairwiseRankLoss should not be used"); }
   explicit PairwiseRankLoss(const std::initializer_list<VariableIndex>& a, real m = 1.0) : Node(a), margin(m) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -341,6 +363,7 @@ struct PairwiseRankLoss : public Node {
 // Let x be a vector-valued input, x_i represents the score of the ith element, then
 // y = \sum{i != element} max{0, margin - x_element + x_i}
 struct Hinge : public Node {
+  Hinge() : Node() { throw std::runtime_error("The default constructor of Hinge should not be used"); }
   explicit Hinge(const std::initializer_list<VariableIndex>& a, unsigned e, real m = 1.0) : Node(a), element(e), pelement(&element), margin(m) {}
   explicit Hinge(const std::initializer_list<VariableIndex>& a, const unsigned* pe, real m = 1.0) : Node(a), element(), pelement(pe), margin(m) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
@@ -359,6 +382,7 @@ struct Hinge : public Node {
 
 // y = x_1
 struct Identity : public Node {
+  Identity() : Node() { throw std::runtime_error("The default constructor of Identity should not be used"); }
   explicit Identity(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -390,6 +414,7 @@ struct MaxPooling1D : public Node {
 
 // y = x_1 * x_2
 struct MatrixMultiply : public Node {
+  MatrixMultiply() : Node() { throw std::runtime_error("The default constructor of MatrixMultiply should not be used"); }
   explicit MatrixMultiply(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -403,6 +428,7 @@ struct MatrixMultiply : public Node {
 
 // y = x_1 \cdot x_2  (Hadamard product)
 struct CwiseMultiply : public Node {
+  CwiseMultiply() : Node() { throw std::runtime_error("The default constructor of CwiseMultiply should not be used"); }
   explicit CwiseMultiply(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -416,6 +442,7 @@ struct CwiseMultiply : public Node {
 
 // y = x_1 / x_2  (cwiseQuotient)
 struct CwiseQuotient : public Node {
+  CwiseQuotient() : Node() { throw std::runtime_error("The default constructor of CwiseQuotient should not be used"); }
   explicit CwiseQuotient(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -429,6 +456,7 @@ struct CwiseQuotient : public Node {
 
 // y = x_1 \sum_{i=2, 4 ...} A_i * x_{i+1}
 struct AffineTransform : public Node {
+  AffineTransform() : Node() { throw std::runtime_error("The default constructor of AffineTransform should not be used"); }
   template <typename T> explicit AffineTransform(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -442,6 +470,7 @@ struct AffineTransform : public Node {
 
 // y = -x_1
 struct Negate : public Node {
+  Negate() : Node() { throw std::runtime_error("The default constructor of Negate should not be used"); }
   explicit Negate(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -455,6 +484,7 @@ struct Negate : public Node {
 
 // y = max(0,x)
 struct Rectify : public Node {
+  Rectify() : Node() { throw std::runtime_error("The default constructor of Rectify should not be used"); }
   explicit Rectify(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -472,6 +502,7 @@ struct Rectify : public Node {
 // target_y is an equivalently sized vector w values between 0 and 1
 // y = ty * log(x_1) + (1 - ty) * log(x_1)
 struct BinaryLogLoss : public Node {
+  BinaryLogLoss() : Node() { throw std::runtime_error("The default constructor of BinaryLogLoss should not be used"); }
   BinaryLogLoss(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -486,6 +517,7 @@ struct BinaryLogLoss : public Node {
 // y = \log \sum_i \exp x_i
 // done in log space carefully to avoid over/underflow issues
 struct LogSumExp : public Node {
+  LogSumExp() : Node() { throw std::runtime_error("The default constructor of LogSumExp should not be used"); }
   template <typename T> explicit LogSumExp(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -500,6 +532,7 @@ struct LogSumExp : public Node {
 
 // y = \sum_i x_i
 struct Sum : public Node {
+  Sum() : Node() { throw std::runtime_error("The default constructor of Sum should not be used"); }
   template <typename T> explicit Sum(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -513,6 +546,7 @@ struct Sum : public Node {
 
 // y = ( \sum_i x_i ) / |x|
 struct Average : public Node {
+  Average() : Node() { throw std::runtime_error("The default constructor of Average should not be used"); }
   template <typename T> explicit Average(const T& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -532,6 +566,7 @@ struct Average : public Node {
 // y = log Poisson(ty; \lambda = \exp x_1)
 //   = ty*x_1 - exp(x_1) - log(ty!)
 struct PoissonRegressionLoss : public Node {
+  PoissonRegressionLoss() : Node() { throw std::runtime_error("The default constructor of PoissonRegressionLoss should not be used"); }
   explicit PoissonRegressionLoss(const std::initializer_list<VariableIndex>& a, unsigned true_y) : Node(a), ty(true_y), pty(&ty) {}
   explicit PoissonRegressionLoss(const std::initializer_list<VariableIndex>& a, const unsigned* ptrue_y) : Node(a), ty(), pty(ptrue_y) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
@@ -549,6 +584,7 @@ struct PoissonRegressionLoss : public Node {
 
 // y = || x_1 - x_2 ||^2
 struct SquaredEuclideanDistance : public Node {
+  SquaredEuclideanDistance() : Node() { throw std::runtime_error("The default constructor of SquaredEuclideanDistance should not be used"); }
   explicit SquaredEuclideanDistance(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -562,6 +598,7 @@ struct SquaredEuclideanDistance : public Node {
 
 // y = || x_1 - x_2 ||_H(d)
 struct HuberDistance : public Node {
+  HuberDistance() : Node() { throw std::runtime_error("The default constructor of HuberDistance should not be used"); }
   explicit HuberDistance(const std::initializer_list<VariableIndex>& a, float d = 1.345f) : Node(a), d(d) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -589,6 +626,7 @@ struct L1Distance : public Node {
 
 // y = \sigma(x_1)
 struct LogisticSigmoid : public Node {
+  LogisticSigmoid() : Node() { throw std::runtime_error("The default constructor of LogisticSigmoid should not be used"); }
   explicit LogisticSigmoid(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -602,6 +640,7 @@ struct LogisticSigmoid : public Node {
 
 // y = x / (1 + |x|)
 struct SoftSign : public Node {
+  SoftSign() : Node() { throw std::runtime_error("The default constructor of SoftSign should not be used"); }
   explicit SoftSign(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -616,6 +655,7 @@ struct SoftSign : public Node {
 // z = \sum_j \exp (x_i)_j
 // y_i = (x_1)_i / z
 struct Softmax : public Node {
+  Softmax() : Node() { throw std::runtime_error("The default constructor of Softmax should not be used"); }
   explicit Softmax(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -630,6 +670,7 @@ struct Softmax : public Node {
 // z = \sum_j \exp (x_i)_j
 // y_i = (x_1)_i - \log z
 struct LogSoftmax : public Node {
+  LogSoftmax() : Node() { throw std::runtime_error("The default constructor of LogSoftmax should not be used"); }
   explicit LogSoftmax(const std::initializer_list<VariableIndex>& a) : Node(a) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -644,6 +685,7 @@ struct LogSoftmax : public Node {
 // z = \sum_j \exp (x_i)_j
 // y = (x_1)_element - \log z
 struct PickNegLogSoftmax : public Node {
+  PickNegLogSoftmax() : Node() { throw std::runtime_error("The default constructor of PickNegLogSoftmax should not be used"); }
   explicit PickNegLogSoftmax(const std::initializer_list<VariableIndex>& a, unsigned v) : Node(a), val(v), pval(&val) {}
   // use this constructor if you want to change the value after the graph is constructed
   explicit PickNegLogSoftmax(const std::initializer_list<VariableIndex>& a, const unsigned* pv) : Node(a), val(), pval(pv) {}
@@ -663,6 +705,7 @@ struct PickNegLogSoftmax : public Node {
 // z = \sum_{j \in denom} \exp (x_i)_j
 // y_i = (x_1)_i - \log z
 struct RestrictedLogSoftmax : public Node {
+  RestrictedLogSoftmax() : Node() { throw std::runtime_error("The default constructor of RestrictedLogSoftmax should not be used"); }
   explicit RestrictedLogSoftmax(const std::initializer_list<VariableIndex>& a, const std::vector<unsigned>& d) : Node(a), denom(d) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
@@ -679,6 +722,7 @@ struct RestrictedLogSoftmax : public Node {
 // y = (x_1)_{*pval}
 // this is used to implement cross-entropy training
 struct PickElement : public Node {
+  PickElement() : Node() { throw std::runtime_error("The default constructor of PickElement should not be used"); }
   explicit PickElement(const std::initializer_list<VariableIndex>& a, unsigned v) : Node(a), val(v), pval(&val) {}
   // use this constructor if you want to change the value after the graph is constructed
   explicit PickElement(const std::initializer_list<VariableIndex>& a, const unsigned* pv) : Node(a), val(), pval(pv) {}
@@ -698,6 +742,7 @@ struct PickElement : public Node {
 // y = x_1[start:end]
 // (start inclusive, end exclusive)
 struct PickRange : public Node {
+  PickRange() : Node() { throw std::runtime_error("The default constructor of PickRange should not be used"); }
   explicit PickRange(const std::initializer_list<VariableIndex>& a, unsigned start, unsigned end) : Node(a), start(start), end(end) {}
   std::string as_string(const std::vector<std::string>& arg_names) const override;
   Dim dim_forward(const std::vector<Dim>& xs) const override;
