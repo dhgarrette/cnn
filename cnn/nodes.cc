@@ -35,6 +35,66 @@ using namespace std;
 
 namespace cnn {
 
+void SelectRows::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("SelectRows not yet implemented for CUDA");
+#else
+  auto x = **xs[0];
+  auto y = *fx;
+  auto& rm = *prows;
+  for (unsigned i = 0; i < rm.size(); ++i)
+    y.row(i) = x.row(rm[i]);
+#endif
+}
+
+void SelectRows::backward_impl(const vector<const Tensor*>& xs,
+                               const Tensor& fx,
+                               const Tensor& dEdf,
+                               unsigned i,
+                               Tensor& dEdxi) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("SelectRows not yet implemented for CUDA");
+#else
+  auto dEdx = *dEdxi;
+  auto d = *dEdf;
+  auto& rm = *prows;
+  for (unsigned i = 0; i < rm.size(); ++i)
+    dEdx.row(rm[i]) += d.row(i);
+#endif
+}
+
+void SelectCols::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("SelectCols not yet implemented for CUDA");
+#else
+  auto x = **xs[0];
+  auto y = *fx;
+  auto& cm = *pcols;
+  for (unsigned i = 0; i < cm.size(); ++i)
+    y.col(i) = x.col(cm[i]);
+#endif
+}
+
+void SelectCols::backward_impl(const vector<const Tensor*>& xs,
+                               const Tensor& fx,
+                               const Tensor& dEdf,
+                               unsigned i,
+                               Tensor& dEdxi) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("SelectCols not yet implemented for CUDA");
+#else
+  auto dEdx = *dEdxi;
+  auto d = *dEdf;
+  auto& cm = *pcols;
+  for (unsigned i = 0; i < cm.size(); ++i)
+    dEdx.col(cm[i]) += d.col(i);
+#endif
+}
+
 void Pow::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
   assert(xs.size() == 2);
 #ifdef HAVE_CUDA
@@ -306,25 +366,15 @@ void KMHNGram::backward_impl(const vector<const Tensor*>& xs,
 
 //   Y_ij = A_ijk * B_k (+ C_ij)
 void InnerProduct3D_1D::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
-  auto b = **xs[1];
-  auto y = *fx;
-  const unsigned i = y.rows();
-  const unsigned j = y.cols();
-  const unsigned k = b.rows();
-  // the following reshape tensors into order 1 or 2 sizes
-  // but they point to the same memory
-  Tensor ta({i*j,k}, xs[0]->v);
-  Tensor ty({i*j}, fx.v);
-  auto A = *ta;
-  if (xs.size() == 3) {
-    Tensor tc({i*j}, xs[2]->v);
-    auto c = *tc;
-    // want to do A * b + c, but it triggers memory allocation
-    (*ty) = c;
-    (*ty).noalias() += A * b;
+  auto A = xs[0]->t<3>();
+  auto b = xs[1]->t<1>();
+  typedef Eigen::Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims({{DimPair(2, 0)}});
+  if (xs.size() == 2) {
+    fx.t<2>() = A.contract(b, dims);
   } else {
-    assert(xs.size() == 2);
-    (*ty).noalias() = A * b;
+    auto C = xs[2]->t<2>();
+    fx.t<2>() = A.contract(b, dims) + C;
   }
 }
 
@@ -333,20 +383,71 @@ void InnerProduct3D_1D::backward_impl(const vector<const Tensor*>& xs,
                      const Tensor& dEdf,
                      unsigned i,
                      Tensor& dEdxi) const {
-  auto b = **xs[1];
-  auto y = *fx;
-  const unsigned si = y.rows();
-  const unsigned sj = y.cols();
-  const unsigned sk = b.rows();
-  Tensor tdEdf({si*sj}, dEdf.v);
-  if (i == 0) { // 3-tensor
-    Tensor tdEdxi({si*sj, sk}, dEdxi.v);
-    (*tdEdxi).noalias() += *tdEdf * (**xs[1]).transpose();
-  } else if (i == 1) { // vector
-    Tensor ta({si*sj,sk}, xs[0]->v);
-    (*dEdxi).noalias() += (*ta).transpose() * *tdEdf;
-  } else { // matrix bias
-    *dEdxi += *dEdf;
+  auto tdEdf = dEdf.t<2>();  // 2 tensor
+  typedef Eigen::Tensor<float, 1>::DimensionPair DimPair;
+  if (i == 0) { // 3 tensor
+    // tensor product
+    auto b = xs[1]->t<1>();
+    dEdxi.t<3>() += tdEdf.contract(b, Eigen::array<DimPair, 0>{{}});
+  } else if (i == 1) {
+    auto A = xs[0]->t<3>();  // A is 3 tensor
+    Eigen::array<DimPair, 2> dims({{DimPair(0, 0), DimPair(1, 1)}});
+    dEdxi.t<1>() += tdEdf.contract(A, dims);
+  } else if (i == 2) {
+    dEdxi.t<2>() += tdEdf;
+  } else {
+    cerr << "shouldn't happen\n"; abort();
+  }
+}
+
+//   Y_ij = A_ijk * B_k * C_j (+ D_i)
+void InnerProduct3D_1D_1D::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  auto A = xs[0]->t<3>();
+  auto b = xs[1]->t<1>();
+  auto c = xs[2]->t<1>();
+  typedef Eigen::Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims({{DimPair(2, 0)}});
+  Eigen::array<DimPair, 1> dims2({{DimPair(1, 0)}});
+  if (xs.size() == 3) {
+    fx.t<1>() = A.contract(b, dims).contract(c, dims2);
+  } else {
+    auto d = xs[3]->t<1>();
+    fx.t<1>() = A.contract(b, dims).contract(c, dims2) + d;
+  }
+}
+
+void InnerProduct3D_1D_1D::backward_impl(const vector<const Tensor*>& xs,
+                     const Tensor& fx,
+                     const Tensor& dEdf,
+                     unsigned i,
+                     Tensor& dEdxi) const {
+  auto tdEdf = dEdf.t<1>();  // vector
+  typedef Eigen::Tensor<float, 1>::DimensionPair DimPair;
+  if (i == 0) { // 3 tensor
+    // tensor product
+    auto b = xs[1]->t<1>();
+    auto c = xs[2]->t<1>();
+    dEdxi.t<3>() += tdEdf.contract(c, Eigen::array<DimPair, 0>{{}}).contract(b, Eigen::array<DimPair, 0>{{}});
+  } else if (i == 1) { // vector 1
+    // TODO these should be reorganized so the contraction is first with tdEdf and then with c or b.
+    // in theory, that intermediate result could be cached (although CNN doesn't support this). the fact that it
+    // this part of the product is redone when i=1 and again when i=2 is probably why this is slower
+    // (or maybe it's the contract implementation?)
+    Eigen::array<DimPair, 1> dims({{DimPair(1, 0)}});
+    Eigen::array<DimPair, 1> dims2({{DimPair(0, 0)}});
+    auto A = xs[0]->t<3>();
+    auto c = xs[2]->t<1>();
+    dEdxi.t<1>() += A.contract(c, dims).contract(tdEdf, dims2);
+  } else if (i == 2) { // vector 2
+    Eigen::array<DimPair, 1> dims({{DimPair(2, 0)}});
+    Eigen::array<DimPair, 1> dims2({{DimPair(0, 0)}});
+    auto A = xs[0]->t<3>();
+    auto b = xs[1]->t<1>();
+    dEdxi.t<1>() += A.contract(b, dims).contract(tdEdf, dims2);
+  } else if (i == 3) { // vector bias
+    dEdxi.t<1>() += tdEdf;
+  } else {
+    cerr << "shouldn't happen\n"; abort();
   }
 }
 
@@ -1548,7 +1649,7 @@ void Rectify::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
   gpu::vrelu(fx.d.size(), xs[0]->v, fx.v);
 #else
   auto x = **xs[0];
-  *fx = x.unaryExpr(FRectify());
+  *fx = x.cwiseMax(0.f);
 #endif
 }
 
