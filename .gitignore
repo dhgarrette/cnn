@@ -53,3 +53,11 @@ rnnlm/ptb-mikolov/
 
 .RData
 .RHistory
+/Debug/
+
+
+.DS_Store
+.cproject
+.project
+.settings/
+

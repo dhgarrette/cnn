@@ -1,5 +1,6 @@
 from setuptools import setup
 from setuptools.extension import Extension
+import os
 from Cython.Distutils import build_ext
 
 
@@ -14,7 +15,8 @@ ext = Extension(
         ["pycnn.pyx"],           # filename of our Pyrex/Cython source
         language="c++",              # this causes Pyrex/Cython to create C++ source
         include_dirs=["../../cnn/",
-                      "../../eigen/"],
+                      "../../eigen/",
+                      os.path.join(os.getenv("BOOST_ROOT"), "include")],
         libraries=['cnn_shared'],             # ditto
         library_dirs=["."],
         #extra_link_args=["-L/home/yogo/Vork/Research/cnn/cnn/build/cnn"],       # if needed
