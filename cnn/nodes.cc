@@ -35,6 +35,194 @@ using namespace std;
 
 namespace cnn {
 
+#define MAX_SPARSEMAX_LOSS_ROWS 65536
+
+size_t SparsemaxLoss::aux_storage_size() const {
+  // first dim.size dimensions is the sparsemax
+  const unsigned rows = MAX_SPARSEMAX_LOSS_ROWS;  // this should be xs[0]->d.rows()
+  return rows * sizeof(float);
+}
+
+void SparsemaxLoss::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  if (xs[0]->d.cols() == 1) {
+#if HAVE_CUDA
+    throw std::runtime_error("SparsemaxLoss not implemented on GPU");
+#else
+    const int rows = xs[0]->d.rows();
+    if (rows > MAX_SPARSEMAX_LOSS_ROWS) {
+      cerr << "MAX_SPARSEMAX_LOSS_ROWS is not sufficient. Recompile with larger value.\n";
+      abort();
+    }
+    float& y = fx.v[0];  // loss
+    const unsigned qsupport_size = pq->size();
+    const float qprop = 1.f / qsupport_size;
+
+    float *zs = static_cast<float*>(aux_mem);
+    std::partial_sort_copy(xs[0]->v, xs[0]->v+rows, zs, zs + rows, std::greater<float>());
+    float sum = 0, maxsum = 0;
+    unsigned k = 0;
+    for (k = 0; k < rows; ++k) {
+      sum += zs[k];
+      float t = 1 + (k + 1) * zs[k];
+      if (t <= sum) break;
+      maxsum = sum;
+    }
+    float tau = (maxsum - 1) / k;
+    Tensor tsm(xs[0]->d, (float*)aux_mem);
+    auto x = **xs[0];
+    auto sm = *tsm;
+    sm = (x - Eigen::MatrixXf::Ones(rows, 1)*tau).cwiseMax(0.f);
+    y = 0;
+    float tau_sq = tau * tau;
+    for (unsigned i = 0; i < rows; ++i) {
+      if (sm(i, 0)) {
+        const float x_s = x(i, 0);
+        y += x_s * x_s - tau_sq;
+      }
+    }
+    y /= 2;
+    y += qprop * qprop * qsupport_size / 2;
+    for (unsigned i = 0; i < qsupport_size; ++i)
+      y -= qprop * x((*pq)[i], 0);
+#endif
+  } else {
+    throw std::runtime_error("SparsemaxLoss not yet implemented for multiple columns");
+  }
+}
+
+void SparsemaxLoss::backward_impl(const vector<const Tensor*>& xs,
+                                  const Tensor& fx,
+                                  const Tensor& dEdf,
+                                  unsigned i,
+                                  Tensor& dEdxi) const {
+#if HAVE_CUDA
+  throw std::runtime_error("SparsemaxLoss not implemented on GPU");
+#else
+  const float d = dEdf.v[0];
+  float* psm = static_cast<float*>(aux_mem);
+  float dqprop = d / pq->size();
+  Tensor tsm(xs[0]->d, psm);
+  auto sm = *tsm;  // sparsemax(z)
+  *dEdxi += sm * d;
+  for (unsigned i = 0; i < pq->size(); ++i)
+    (*dEdxi)((*pq)[i], 0) -= dqprop;
+#endif
+}
+
+size_t Sparsemax::aux_storage_size() const {
+  return (1 + dim.size()) * max(sizeof(int), sizeof(float));
+  // first is the size of the support
+  // then comes the indices of the support
+}
+
+void Sparsemax::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  if (xs[0]->d.cols() == 1) {
+#if HAVE_CUDA
+    throw std::runtime_error("Sparsemax not implemented on GPU");
+#else
+    const unsigned rows = xs[0]->d.rows();
+    float *zs = static_cast<float*>(aux_mem);
+    std::partial_sort_copy(xs[0]->v, xs[0]->v+rows, zs, zs + rows, std::greater<float>());
+    float sum = 0, maxsum = 0;
+    unsigned k = 0;
+    for (k = 0; k < rows; ++k) {
+      sum += zs[k];
+      float t = 1 + (k + 1) * zs[k];
+      if (t <= sum) break;
+      maxsum = sum;
+    }
+    float tau = (maxsum - 1) / k;
+    auto x = **xs[0];
+    auto y = *fx;
+    y = (x - Eigen::MatrixXf::Ones(rows, 1)*tau).cwiseMax(0.f);
+    int c = 1;
+    int *cc = static_cast<int*>(aux_mem);
+    for (unsigned i = 0; i < rows; ++i)
+      if (y(i,0) > 0.f) cc[c++] = i;
+    cc[0] = c - 1;
+#endif
+  } else {
+    throw std::runtime_error("Sparsemax not yet implemented for multiple columns");
+  }
+}
+
+void Sparsemax::backward_impl(const vector<const Tensor*>& xs,
+                              const Tensor& fx,
+                              const Tensor& dEdf,
+                              unsigned i,
+                              Tensor& dEdxi) const {
+#if HAVE_CUDA
+  throw std::runtime_error("Sparsemax not implemented on GPU");
+#else
+  const int ssize = static_cast<int*>(aux_mem)[0];
+  int *support = static_cast<int*>(aux_mem) + 1;
+  float dhat = 0;
+  auto& d = *dEdf;
+  for (int i = 0; i < ssize; ++i)
+    dhat += d(support[i], 0);
+  dhat /= ssize;
+  for (int i = 0; i < ssize; ++i)
+    (*dEdxi)(support[i], 0) += d(support[i], 0) - dhat;
+#endif
+}
+
+void MatrixInverse::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("MatrixInverse not yet implemented for CUDA");
+#else
+  auto x = **xs[0];
+  auto y = *fx;
+  y = x.inverse();
+#endif
+}
+
+void MatrixInverse::backward_impl(const vector<const Tensor*>& xs,
+                                  const Tensor& fx,
+                                  const Tensor& dEdf,
+                                  unsigned i,
+                                  Tensor& dEdxi) const {
+  assert(xs.size() == 1);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("MatrixInverse not yet implemented for CUDA");
+#else
+  auto d = *dEdf;
+  auto y = *fx;
+  (*dEdxi) -= y * d * y;
+#endif
+}
+
+void AddMv::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  assert(xs.size() == 2);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("AddMv not yet implemented for CUDA");
+#else
+  auto M = **xs[0];
+  auto v = **xs[1];
+  auto y = *fx;
+  y = M.colwise() + v.col(0);
+#endif
+}
+
+void AddMv::backward_impl(const vector<const Tensor*>& xs,
+                          const Tensor& fx,
+                          const Tensor& dEdf,
+                          unsigned i,
+                          Tensor& dEdxi) const {
+  assert(xs.size() == 2);
+#ifdef HAVE_CUDA
+  throw std::runtime_error("AddMv not yet implemented for CUDA");
+#else
+  auto dEdx = *dEdxi;
+  auto d = *dEdf;
+  if (i == 0) { // Matrix
+    dEdx += d;
+  } else { // vector
+    dEdx += d.rowwise().sum();
+  }
+#endif
+}
+
 void SelectRows::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
   assert(xs.size() == 1);
 #ifdef HAVE_CUDA
@@ -135,11 +323,11 @@ void Min::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Min not yet implemented for CUDA");
 #else
-  auto y = *fx;
-  auto x1 = **xs[0];
-  auto x2 = **xs[1];
+  auto y = fx.vec();
+  auto x1 = xs[0]->vec();
+  auto x2 = xs[1]->vec();
   Tensor t(fx.d, static_cast<float*>(aux_mem));
-  auto u = *t;
+  auto u = t.vec();
   u = (x1.array() < x2.array()).matrix().cast<float>();
   y = x1.cwiseMin(x2);
 #endif
@@ -156,9 +344,9 @@ void Min::backward_impl(const vector<const Tensor*>& xs,
 #else
   const Tensor t(dEdxi.d, static_cast<float*>(aux_mem));
   if (i == 0) {
-    *dEdxi += (*t).cwiseProduct(*dEdf);
+    dEdxi.vec() += t.vec().cwiseProduct(dEdf.vec());
   } else {
-    *dEdxi += (*t).binaryExpr(*dEdf, FMaxBackwardInv());
+    dEdxi.vec() += t.vec().binaryExpr(dEdf.vec(), FMaxBackwardInv());
   }
 #endif
 }
@@ -171,11 +359,11 @@ void Max::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Max not yet implemented for CUDA");
 #else
-  auto y = *fx;
-  auto x1 = **xs[0];
-  auto x2 = **xs[1];
+  auto y = fx.vec();
+  auto x1 = xs[0]->vec();
+  auto x2 = xs[1]->vec();
   Tensor t(fx.d, static_cast<float*>(aux_mem));
-  auto u = *t;
+  auto u = t.vec();
   u = (x1.array() > x2.array()).matrix().cast<float>();
   y = x1.cwiseMax(x2);
 #endif
@@ -192,9 +380,9 @@ void Max::backward_impl(const vector<const Tensor*>& xs,
 #else
   const Tensor t(dEdxi.d, static_cast<float*>(aux_mem));
   if (i == 0) {
-    *dEdxi += (*t).cwiseProduct(*dEdf);
+    dEdxi.vec() += t.vec().cwiseProduct(dEdf.vec());
   } else {
-    *dEdxi += (*t).binaryExpr(*dEdf, FMaxBackwardInv());
+    dEdxi.vec() += t.vec().binaryExpr(dEdf.vec(), FMaxBackwardInv());
   }
 #endif
 }
@@ -228,7 +416,7 @@ void ConstScalarMultiply::forward_impl(const vector<const Tensor*>& xs, Tensor& 
 #ifdef HAVE_CUDA
   throw std::runtime_error("ConstantScalarMultiply not yet implemented for CUDA");
 #else
-  *fx = (**xs[0]) * alpha;
+  fx.vec() = xs[0]->vec() * alpha;
 #endif
 }
 
@@ -241,7 +429,7 @@ void ConstScalarMultiply::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("ScalarMultiply not yet implemented for CUDA");
 #else
-  *dEdxi += *dEdf * alpha;
+  dEdxi.vec() += dEdf.vec() * alpha;
 #endif
 }
 
@@ -461,7 +649,7 @@ void GaussianNoise::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) co
 #else
   Tensor m(dim, (float*)aux_mem);
   TensorTools::RandomizeNormal(0, stddev, m);
-  (*fx) = **xs[0] + *m;
+  fx.vec() = xs[0]->vec() + m.vec();
 #endif
 }
 
@@ -473,7 +661,7 @@ void GaussianNoise::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("GaussianNoise not yet implemented for CUDA");
 #else
-  *dEdxi += *dEdf;
+  dEdxi.vec() += dEdf.vec();
 #endif
 }
 
@@ -482,11 +670,11 @@ size_t Dropout::aux_storage_size() const {
 }
 
 void Dropout::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
-#ifdef HAVE_CUDA
-  throw std::runtime_error("Dropout not yet implemented for CUDA");
-#else
   Tensor m(dim, (float*)aux_mem);
   TensorTools::RandomBernoulli(m, (1.f-p), 1.f / (1.f-p));
+#ifdef HAVE_CUDA
+  gpu::vcwise_product(fx.d.size(), xs[0]->v, m.v, fx.v);
+#else
   fx.vec() = xs[0]->vec().cwiseProduct(m.vec());
 #endif
 }
@@ -496,10 +684,10 @@ void Dropout::backward_impl(const vector<const Tensor*>& xs,
                        const Tensor& dEdf,
                        unsigned i,
                        Tensor& dEdxi) const {
-#ifdef HAVE_CUDA
-  throw std::runtime_error("Pow not yet implemented for CUDA");
-#else
   Tensor m(dim, (float*)aux_mem);
+#ifdef HAVE_CUDA
+  gpu::vcwise_product(dEdf.d.size(), dEdf.v, m.v, fx.v);
+#else
   dEdxi.vec() += dEdf.vec().cwiseProduct(m.vec());
 #endif
 }
@@ -542,8 +730,7 @@ void ConstantPlusX::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) co
 #ifdef HAVE_CUDA
   throw std::runtime_error("ConstantPlusX not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *fx = x.unaryExpr(const_add_op<float>(c));
+  fx.vec() = xs[0]->vec().unaryExpr(const_add_op<float>(c));
 #endif
 }
 
@@ -552,15 +739,14 @@ void ConstantPlusX::backward_impl(const vector<const Tensor*>& xs,
                      const Tensor& dEdf,
                      unsigned i,
                      Tensor& dEdxi) const {
-  *dEdxi += *dEdf;
+  dEdxi.vec() += dEdf.vec();
 }
 
 void ConstantMinusX::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #if HAVE_CUDA
   gpu::vconstant_minusx(fx.d.size(), c, xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  *fx = x.unaryExpr(const_minus_op<float>(c));
+  fx.vec() = xs[0]->vec().unaryExpr(const_minus_op<float>(c));
 #endif
 }
 
@@ -572,7 +758,7 @@ void ConstantMinusX::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vnegate_backward(dEdxi.d.size(), dEdf.v, dEdxi.v);
 #else
-  *dEdxi -= *dEdf;
+  dEdxi.vec() -= dEdf.vec();
 #endif
 }
 
@@ -590,6 +776,34 @@ EIGEN_STRONG_INLINE float logsumexp(const T& x) {
     z += exp(x(i,0) - m);
 #endif
   return m + log(z);
+}
+
+// set use_cholesky if M is symmetric - it's faster and more stable
+// for dep paring it won't be
+template <typename MatrixType>
+inline typename MatrixType::Scalar logdet(const MatrixType& M, bool use_cholesky = false) {
+  using namespace Eigen;
+  using std::log;
+  typedef typename MatrixType::Scalar Scalar;
+  Scalar ld = 0;
+  if (use_cholesky) {
+    LLT<Matrix<Scalar,Dynamic,Dynamic>> chol(M);
+    auto& U = chol.matrixL();
+    for (unsigned i = 0; i < M.rows(); ++i)
+      ld += log(U(i,i));
+    ld *= 2;
+  } else {
+    PartialPivLU<Matrix<Scalar,Dynamic,Dynamic>> lu(M);
+    auto& LU = lu.matrixLU();
+    Scalar c = lu.permutationP().determinant(); // -1 or 1
+    for (unsigned i = 0; i < LU.rows(); ++i) {
+      const auto& lii = LU(i,i);
+      if (lii < Scalar(0)) c *= -1;
+      ld += log(abs(lii));
+    }
+    ld += log(c);
+  }
+  return ld;
 }
 
 // this i need to do something better, but this is a work-around
@@ -612,6 +826,10 @@ void LogSumExp::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const 
   fx.v[0] = logsumexp(*v);
 }
 
+void LogDet::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  fx.v[0] = logdet(**xs[0], false);
+}
+
 void LogSumExp::backward_impl(const vector<const Tensor*>& xs,
                      const Tensor& fx,
                      const Tensor& dEdf,
@@ -628,6 +846,15 @@ void LogSumExp::backward_impl(const vector<const Tensor*>& xs,
   d.array() += (**xs[i] - *fx).array().exp() * (*dEdf).array();
 }
 
+void LogDet::backward_impl(const vector<const Tensor*>& xs,
+                     const Tensor& fx,
+                     const Tensor& dEdf,
+                     unsigned i,
+                     Tensor& dEdxi) const {
+  auto trans = (**xs[0]).transpose();
+  (*dEdxi) += (dEdf.v[0]) * trans.inverse();
+}
+
 void Sum::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
   const unsigned num_args = xs.size();
   if (num_args == 1) {
@@ -639,16 +866,16 @@ void Sum::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
   for (unsigned i = 0; i < num_args; ++i)
     CUBLAS_CHECK(cublasSaxpy(cublas_handle, fx.d.size(), kSCALAR_ONE, xs[i]->v, 1, fx.v, 1));
 #else
-  auto res = *fx;
+  auto res = fx.vec();
   const unsigned remainder = num_args % 4;
   switch (remainder) {
     case 0: res.setZero(); break;
-    case 1: res = **xs[0]; break;
-    case 2: res = **xs[0] + **xs[1]; break;
-    case 3: res = **xs[0] + **xs[1] + **xs[2]; break;
+    case 1: res = xs[0]->vec(); break;
+    case 2: res = xs[0]->vec() + xs[1]->vec(); break;
+    case 3: res = xs[0]->vec() + xs[1]->vec() + xs[2]->vec(); break;
   }
   for (unsigned i = remainder; i < num_args; i += 4)
-    res += **xs[i] + **xs[i+1] + **xs[i+2] + **xs[i+3];
+    res += xs[i]->vec() + xs[i+1]->vec() + xs[i+2]->vec() + xs[i+3]->vec();
 #endif
 }
 
@@ -661,7 +888,7 @@ void Sum::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   CUBLAS_CHECK(cublasSaxpy(cublas_handle, fx.d.size(), kSCALAR_ONE, dEdf.v, 1, dEdxi.v, 1));
 #else
-  *dEdxi += *dEdf;
+  dEdxi.vec() += dEdf.vec();
 #endif
 }
 
@@ -707,16 +934,16 @@ void Average::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
     fx.v = xs[0]->v;
     return;
   }
-  auto res = *fx;
+  auto res = fx.vec();
   const unsigned remainder = num_args % 4;
   switch (remainder) {
     case 0: res.setZero(); break;
-    case 1: res = **xs[0]; break;
-    case 2: res = **xs[0] + **xs[1]; break;
-    case 3: res = **xs[0] + **xs[1] + **xs[2]; break;
+    case 1: res = xs[0]->vec(); break;
+    case 2: res = xs[0]->vec() + xs[1]->vec(); break;
+    case 3: res = xs[0]->vec() + xs[1]->vec() + xs[2]->vec(); break;
   }
   for (unsigned i = remainder; i < num_args; i += 4)
-    res += **xs[i] + **xs[i+1] + **xs[i+2] + **xs[i+3];
+    res += xs[i]->vec() + xs[i+1]->vec() + xs[i+2]->vec() + xs[i+3]->vec();
   res /= num_args;
 }
 
@@ -725,15 +952,14 @@ void Average::backward_impl(const vector<const Tensor*>& xs,
                      const Tensor& dEdf,
                      unsigned i,
                      Tensor& dEdxi) const {
-  *dEdxi += (*dEdf / xs.size());
+  dEdxi.vec() += (dEdf.vec() / xs.size());
 }
 
 void Sqrt::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Sqrt not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  (*fx) = x.cwiseSqrt();
+  fx.vec() = xs[0]->vec().cwiseSqrt();
 #endif
 }
 
@@ -745,7 +971,7 @@ void Sqrt::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("Sqrt not yet implemented for CUDA");
 #else
-  *dEdxi += (*fx).binaryExpr(*dEdf, FSqrtBackward());
+  dEdxi.vec() += fx.vec().binaryExpr(*dEdf, FSqrtBackward());
 #endif
 }
 
@@ -753,8 +979,7 @@ void Erf::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Erf not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  (*fx).array() = x.array().erf();
+  fx.vec().array() = xs[0]->vec().array().erf();
 #endif
 }
 
@@ -766,8 +991,7 @@ void Erf::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("Erf not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *dEdxi += x.binaryExpr(*dEdf, scalar_erf_backward_op<float>());
+  dEdxi.vec() += xs[0]->vec().binaryExpr(dEdf.vec(), scalar_erf_backward_op<float>());
 #endif
 }
 
@@ -775,8 +999,7 @@ void Tanh::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #if HAVE_CUDA
   gpu::vtanh(fx.d.size(), xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  (*fx).array() = x.array().tanh();
+  fx.vec().array() = xs[0]->vec().array().tanh();
 #endif
 }
 
@@ -788,7 +1011,7 @@ void Tanh::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vtanh_backward(fx.d.size(), fx.v, dEdf.v, dEdxi.v);
 #else
-  *dEdxi += (*fx).binaryExpr(*dEdf, scalar_tanh_backward_op<float>());
+  dEdxi.vec() += fx.vec().binaryExpr(dEdf.vec(), scalar_tanh_backward_op<float>());
 #endif
 }
 
@@ -796,8 +1019,7 @@ void Square::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Square not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  (*fx).array() = x.array().square();
+  fx.vec().array() = xs[0]->vec().array().square();
 #endif
 }
 
@@ -809,8 +1031,7 @@ void Square::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("Square not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *dEdxi += (*dEdf).cwiseProduct(x) * 2;
+  dEdxi.vec() += dEdf.vec().cwiseProduct(xs[0]->vec()) * 2;
 #endif
 }
 
@@ -818,8 +1039,7 @@ void Cube::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Square not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  (*fx).array() = x.array().cube();
+  fx.vec().array() = xs[0]->vec().array().cube();
 #endif
 }
 
@@ -831,9 +1051,8 @@ void Cube::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("Cube not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
 //  *dEdxi += (*dEdf).cwiseProduct(x.cwiseProduct(x)) * 3;
-  (*dEdxi).array() += (*dEdf).array() * x.array().square() * 3;
+  dEdxi.vec().array() += dEdf.vec().array() * xs[0]->vec().array().square() * 3;
 #endif
 }
 
@@ -841,8 +1060,7 @@ void Exp::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("Exp not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *fx = x.array().exp();
+  fx.vec() = xs[0]->vec().array().exp();
 #endif
 }
 
@@ -854,7 +1072,7 @@ void Exp::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("Exp not yet implemented for CUDA");
 #else
-  *dEdxi += (*dEdf).cwiseProduct(*fx);
+  dEdxi.vec() += dEdf.vec().cwiseProduct(fx.vec());
 #endif
 }
 
@@ -862,8 +1080,7 @@ void LogGamma::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("LogGamma not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *fx = x.array().lgamma();
+  fx.vec() = xs[0]->vec().array().lgamma();
 #endif
 }
 
@@ -875,8 +1092,7 @@ void LogGamma::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("LogGamma not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *dEdxi += x.binaryExpr(*dEdf, FLogGammaBackward());
+  dEdxi.vec() += xs[0]->vec().binaryExpr(dEdf.vec(), FLogGammaBackward());
 #endif
 }
 
@@ -884,8 +1100,7 @@ void Log::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #if HAVE_CUDA
   gpu::vlog(fx.d.size(), xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  *fx = x.array().log();
+  fx.vec() = xs[0]->vec().array().log();
 #endif
 }
 
@@ -897,8 +1112,7 @@ void Log::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vlog_backward(fx.d.size(), xs[0]->v, dEdf.v, dEdxi.v);
 #else
-  auto x = **xs[0];
-  *dEdxi += (*dEdf).cwiseQuotient(x);
+  dEdxi.vec() += dEdf.vec().cwiseQuotient(xs[0]->vec());
 #endif
 }
 
@@ -984,9 +1198,9 @@ void PairwiseRankLoss::forward_impl(const vector<const Tensor*>& xs, Tensor& fx)
 #if HAVE_CUDA
   gpu::vpairwise_rank_loss(fx.d.size(), margin, xs[0]->v, xs[1]->v, fx.v);
 #else
-  auto a = **xs[0];
-  auto b = **xs[1];
-  *fx = a.binaryExpr(b, FPairwiseRankLoss(margin));
+  auto a = xs[0]->vec();
+  auto b = xs[1]->vec();
+  fx.vec() = a.binaryExpr(b, FPairwiseRankLoss(margin));
 #endif
 }
 
@@ -999,9 +1213,9 @@ void PairwiseRankLoss::backward_impl(const vector<const Tensor*>& xs,
   gpu::vpairwise_rank_loss_backward(dEdf.d.size(), (i == 0), fx.v, dEdf.v, dEdxi.v);
 #else
   if (i == 0) {
-    *dEdxi -= (*fx).binaryExpr(*dEdf, FRectifyBackward());
+    dEdxi.vec() -= fx.vec().binaryExpr(dEdf.vec(), FRectifyBackward());
   } else {
-    *dEdxi += (*fx).binaryExpr(*dEdf, FRectifyBackward());
+    dEdxi.vec() += fx.vec().binaryExpr(dEdf.vec(), FRectifyBackward());
   }
 #endif
 }
@@ -1066,7 +1280,7 @@ void Identity::backward_impl(const vector<const Tensor*>& xs,
                   const Tensor& dEdf,
                   unsigned i,
                   Tensor& dEdxi) const {
-  *dEdxi += *dEdf;
+  dEdxi.vec() += dEdf.vec();
 }
 
 void MaxPooling1D::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
@@ -1123,7 +1337,11 @@ void Softmax::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
     gpu::softmax(xs[0]->d.size(), xs[0]->v, fx.v);
 #else
     auto x = **xs[0];
-    *fx = x.unaryExpr(FSoftmaxNormalize(logsumexp(x)));
+    if (x.rows() == 1) {
+      fx.v[0] = 1;
+    } else {
+      *fx = x.unaryExpr(FSoftmaxNormalize(logsumexp(x)));
+    }
 #endif
   } else {
     throw std::runtime_error("Softmax not yet implemented for multiple columns");
@@ -1138,8 +1356,10 @@ void Softmax::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::softmax_backward(fx.d.size(), fx.v, dEdf.v, dEdxi.v);
 #else
-  float off_diag_sum = -(*fx).cwiseProduct(*dEdf).sum();
-  *dEdxi += (*fx).binaryExpr(*dEdf, FSoftmaxBackward(off_diag_sum));
+  auto y = *fx;
+  if (y.rows() == 1) { return; } // no error if softmax = 0
+  float off_diag_sum = -y.cwiseProduct(*dEdf).sum();
+  *dEdxi += y.binaryExpr(*dEdf, FSoftmaxBackward(off_diag_sum));
 #endif
 }
 
@@ -1305,12 +1525,25 @@ void RestrictedLogSoftmax::backward_impl(const vector<const Tensor*>& xs,
 // x_1 is a vector
 // y = (x_1)_{*pval}
 void PickElement::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
-  assert(xs.size() == 1);
 #ifdef HAVE_CUDA
   throw std::runtime_error("PickElement not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  fx.v[0] = x(*pval);
+  if(pval) {
+    if (*pval >= xs[0]->d.rows()) {
+      cerr << "PickElement::forward_impl requested element " << *pval
+           << "from a vector of length " << xs[0]->d.rows() << endl;
+      abort();
+    }
+    auto x = **xs[0];
+    fx.v[0] = x(*pval);
+  } else {
+    assert(pvals);
+    assert(pvals->size() == fx.d.batch_elems());
+    for(unsigned b = 0; b < pvals->size(); ++b) {
+      auto x = xs[0]->batch_matrix(b);
+      fx.v[b] = x((*pvals)[b]);
+    }
+  }
 #endif
 }
 
@@ -1324,7 +1557,13 @@ void PickElement::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("PickElement not yet implemented for CUDA");
 #else
-  (*dEdxi)(*pval) += dEdf.v[0];
+  if(pval) {
+    (*dEdxi)(*pval) += dEdf.v[0];
+  } else {
+    assert(pvals);
+    for(unsigned b = 0; b < pvals->size(); ++b)
+      dEdxi.batch_matrix(b)((*pvals)[b]) += dEdf.v[b];
+  }
 #endif
 }
 
@@ -1438,14 +1677,24 @@ void MatrixMultiply::backward_impl(const vector<const Tensor*>& xs,
             xs[1]->batch_ptr(b), xs[1]->d.rows(),
             kSCALAR_ONE, dEdxi.batch_ptr(b), dEdxi.d.rows()));
   } else {
-    // TODO: Fix this to share
-    for(int b = 0; b < max_b; ++b)
+    // Do a single multiply if xs[0] has one batch
+    if(xs[0]->d.bd == 1) {
+      // dEdxi.colbatch_matrix().noalias() += (**xs[0]).transpose() * dEdf.colbatch_matrix();
       CUBLAS_CHECK(cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            dEdxi.d.rows(), dEdxi.d.cols(), xs[0]->d.rows(),
+            dEdxi.d.rows(), dEdxi.d.cols()*dEdxi.d.batch_elems(), xs[0]->d.rows(),
             kSCALAR_ONE,
-            xs[0]->batch_ptr(b), xs[0]->d.rows(),
-            dEdf.batch_ptr(b), dEdf.d.rows(),
-            kSCALAR_ONE, dEdxi.batch_ptr(b), dEdxi.d.rows()));
+            xs[0]->v, xs[0]->d.rows(),
+            dEdf.v, dEdf.d.rows(),
+            kSCALAR_ONE, dEdxi.v, dEdxi.d.rows()));
+    } else {
+      for(int b = 0; b < max_b; ++b)
+        CUBLAS_CHECK(cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N,
+              dEdxi.d.rows(), dEdxi.d.cols(), xs[0]->d.rows(),
+              kSCALAR_ONE,
+              xs[0]->batch_ptr(b), xs[0]->d.rows(),
+              dEdf.batch_ptr(b), dEdf.d.rows(),
+              kSCALAR_ONE, dEdxi.batch_ptr(b), dEdxi.d.rows()));
+    }
   }
 #else
   if (i == 0) {
@@ -1467,9 +1716,9 @@ void CwiseQuotient::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) co
 #ifdef HAVE_CUDA
   throw std::runtime_error("CwiseQuotient::forward not yet implemented for CUDA");
 #else
-  auto x1 = **xs[0];
-  auto x2 = **xs[1];
-  *fx = x1.cwiseQuotient(x2);
+  auto x1 = xs[0]->vec();
+  auto x2 = xs[1]->vec();
+  fx.vec() = x1.cwiseQuotient(x2);
 #endif
 }
 
@@ -1483,12 +1732,12 @@ void CwiseQuotient::backward_impl(const vector<const Tensor*>& xs,
   throw std::runtime_error("CwiseQuotient::backward not yet implemented for CUDA");
 #else
   if (i == 0) {
-    auto x2 = **xs[1];
-    *dEdxi += (*dEdf).cwiseQuotient(x2);
+    auto x2 = xs[1]->vec();
+    dEdxi.vec() += dEdf.vec().cwiseQuotient(x2);
   } else { // i = 1
-    auto x1 = **xs[0];
-    auto x2 = **xs[1];
-    *dEdxi -= (*dEdf).cwiseQuotient(x2.cwiseProduct(x2)).cwiseProduct(x1);
+    auto x1 = xs[0]->vec();
+    auto x2 = xs[1]->vec();
+    dEdxi.vec() -= dEdf.vec().cwiseQuotient(x2.cwiseProduct(x2)).cwiseProduct(x1);
   }
 #endif
 }
@@ -1498,9 +1747,9 @@ void CwiseMultiply::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) co
 #if HAVE_CUDA
   gpu::vcwise_product(fx.d.size(), xs[0]->v, xs[1]->v, fx.v);
 #else
-  auto x1 = **xs[0];
-  auto x2 = **xs[1];
-  *fx = x1.cwiseProduct(x2);
+  auto x1 = xs[0]->vec();
+  auto x2 = xs[1]->vec();
+  fx.vec() = x1.cwiseProduct(x2);
 #endif
 }
 
@@ -1514,15 +1763,15 @@ void CwiseMultiply::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
     gpu::vcwise_product_backward(fx.d.size(), dEdf.v, xs[1]->v, dEdxi.v);
 #else
-    auto x2 = **xs[1];
-    *dEdxi += (*dEdf).cwiseProduct(x2);
+    auto x2 = xs[1]->vec();
+    dEdxi.vec() += dEdf.vec().cwiseProduct(x2);
 #endif
   } else {
 #if HAVE_CUDA
     gpu::vcwise_product_backward(fx.d.size(), dEdf.v, xs[0]->v, dEdxi.v);
 #else
-    auto x1 = **xs[0];
-    *dEdxi += (*dEdf).cwiseProduct(x1);
+    auto x1 = xs[0]->vec();
+    dEdxi.vec() += dEdf.vec().cwiseProduct(x1);
 #endif
   }
 }
@@ -1537,11 +1786,14 @@ void AffineTransform::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) 
     for (unsigned i = 1; i < xs.size(); i += 2)
       // fx = (acc_sclar)*fx + xs[0] * xs[1]
       CUDAMatrixMultiply(*xs[i], *xs[i + 1], fx, (i == 1) ? kSCALAR_ZERO : kSCALAR_ONE);
-    assert(fx.d.bd == 1);
-    assert(xs[0]->d.bd == 1);
-    CUBLAS_CHECK(cublasSaxpy(cublas_handle, fx.d.size(), kSCALAR_ONE, xs[0]->v, 1, fx.v, 1));
+    if(fx.d.bd == xs[0]->d.bd) {
+      CUBLAS_CHECK(cublasSaxpy(cublas_handle, fx.d.size(), kSCALAR_ONE, xs[0]->v, 1, fx.v, 1));
+    } else {
+      // TODO: Any better way to do broadcasting?
+      for(unsigned b = 0; b < fx.d.bd; ++b)
+        CUBLAS_CHECK(cublasSaxpy(cublas_handle, fx.d.batch_size(), kSCALAR_ONE, xs[0]->batch_ptr(b), 1, fx.batch_ptr(b), 1));
+    }
 #else
-    assert(fx.d.bd == 1);
     // Add, using broadcasting or not
     if(fx.d.bd > 1 && xs[0]->d.bd == 1) {
       fx.rowcol_matrix().colwise() = xs[0]->vec();
@@ -1552,12 +1804,13 @@ void AffineTransform::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) 
 
     // Multiply
     for (unsigned i = 1; i < xs.size(); i += 2) {
-      if(xs[i]->d.bd == 1) {
+      if(xs[i]->d.bd == 1 && xs[i+1]->d.bd == fx.d.bd) {
         fx.colbatch_matrix().noalias() += **xs[i] * xs[i+1]->colbatch_matrix();
       } else {
         assert(xs[i+1]->d.bd == 1 || xs[i+1]->d.bd == xs[i]->d.bd);
-        for(unsigned b = 0; b < xs[i]->d.bd; ++b)
+        for(unsigned b = 0; b < fx.d.bd; ++b) {
           fx.batch_matrix(b).noalias() += xs[i]->batch_matrix(b) * xs[i+1]->batch_matrix(b);
+        }
       }
     }
 
@@ -1575,12 +1828,11 @@ void AffineTransform::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
     CUBLAS_CHECK(cublasSaxpy(cublas_handle, dEdxi.d.size(), kSCALAR_ONE, dEdf.v, 1, dEdxi.v, 1));
 #else
-    assert(fx.d.bd == 1);
     // Add, using broadcasting or not
-    if(dEdxi.d.bd > 1 && dEdf.d.bd == 1) {
-      dEdxi.rowcol_matrix().colwise() += dEdf.vec();
+    if(dEdxi.d.bd == 1 && dEdf.d.bd > 1) {
+      (*dEdxi) += dEdf.rowcol_matrix().rowwise().sum();
     } else {
-      for(unsigned b = 0; b < dEdxi.d.bd; ++b)
+      for(unsigned b = 0; b < dEdf.d.bd; ++b)
         dEdxi.batch_matrix(b) += dEdf.batch_matrix(b);
     }
 #endif
@@ -1601,16 +1853,25 @@ void AffineTransform::backward_impl(const vector<const Tensor*>& xs,
   } else {  // right argument of matrix multiply
     int max_b = max(xs[i-1]->d.bd, dEdf.d.bd);
 #if HAVE_CUDA
-    // TODO: Add reverse
-    for(int b = 0; b < max_b; ++b)
-      CUBLAS_CHECK(cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            dEdxi.d.rows(), dEdxi.d.cols(), xs[i-1]->d.rows(),
-            kSCALAR_ONE,
-            xs[i-1]->batch_ptr(b), xs[i-1]->d.rows(),
-            dEdf.batch_ptr(b), xs[i-1]->d.rows(),
-            kSCALAR_ONE, dEdxi.batch_ptr(b), dEdxi.d.rows()));
-#else
+    // Do a single multiply if xs[i-1] has one batch
     if(xs[i-1]->d.bd == 1) {
+      CUBLAS_CHECK(cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, 
+            dEdxi.d.rows(), dEdxi.d.cols()*dEdxi.d.batch_elems(), xs[i-1]->d.rows(),
+            kSCALAR_ONE,
+            xs[i-1]->v, xs[i-1]->d.rows(),
+            dEdf.v, dEdf.d.rows(),
+            kSCALAR_ONE, dEdxi.v, dEdxi.d.rows()));
+    } else {
+      for(int b = 0; b < max_b; ++b)
+        CUBLAS_CHECK(cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N,
+              dEdxi.d.rows(), dEdxi.d.cols(), xs[i-1]->d.rows(),
+              kSCALAR_ONE,
+              xs[i-1]->batch_ptr(b), xs[i-1]->d.rows(),
+              dEdf.batch_ptr(b), dEdf.d.rows(),
+              kSCALAR_ONE, dEdxi.batch_ptr(b), dEdxi.d.rows()));
+    }
+#else
+    if(xs[i-1]->d.bd == 1 && dEdxi.d.bd == dEdf.d.bd) {
       dEdxi.colbatch_matrix().noalias() += (**xs[i-1]).transpose() * dEdf.colbatch_matrix();
     } else {
       for(int b = 0; b < max_b; ++b)
@@ -1625,8 +1886,8 @@ void Negate::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #if HAVE_CUDA
   gpu::vnegate(fx.d.size(), xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  *fx = -x;
+  auto x = xs[0]->vec();
+  fx.vec() = -x;
 #endif
 }
 
@@ -1639,7 +1900,7 @@ void Negate::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vnegate_backward(fx.d.size(), dEdf.v, dEdxi.v);
 #else
-  *dEdxi -= *dEdf;
+  dEdxi.vec() -= dEdf.vec();
 #endif
 }
 
@@ -1648,8 +1909,8 @@ void Rectify::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #if HAVE_CUDA
   gpu::vrelu(fx.d.size(), xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  *fx = x.cwiseMax(0.f);
+  auto x = xs[0]->vec();
+  fx.vec() = x.cwiseMax(0.f);
 #endif
 }
 
@@ -1661,7 +1922,7 @@ void Rectify::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vrelu_backward(fx.d.size(), fx.v, dEdf.v, dEdxi.v);
 #else
-  *dEdxi += (*fx).binaryExpr(*dEdf, FRectifyBackward());
+  dEdxi.vec() += fx.vec().binaryExpr(dEdf.vec(), FRectifyBackward());
 #endif
 }
 
@@ -1701,8 +1962,8 @@ void L1Distance::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const
 #ifdef HAVE_CUDA
   throw std::runtime_error("L1Distance not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  auto y = **xs[1];
+  auto x = xs[0]->vec();
+  auto y = xs[1]->vec();
   fx.v[0] = (x - y).lpNorm<1>();
 #endif
 }
@@ -1716,9 +1977,9 @@ void L1Distance::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("L1Distance not yet implemented for CUDA");
 #else
-  auto x = **xs[i];
-  auto y = **xs[1-i];
-  *dEdxi += (x - y).unaryExpr(FL1Backward(dEdf.v[0]));
+  auto x = xs[i]->vec();
+  auto y = xs[1-i]->vec();
+  dEdxi.vec() += (x - y).unaryExpr(FL1Backward(dEdf.v[0]));
 #endif
 }
 
@@ -1745,6 +2006,29 @@ void PoissonRegressionLoss::backward_impl(const vector<const Tensor*>& xs,
   const auto y = *pty;
   auto& dEdx = dEdxi.v[0];
   dEdx += expf(x) - y;
+#endif
+}
+
+void SquaredNorm::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
+  assert(xs.size() == 1);
+#if HAVE_CUDA
+  throw std::runtime_error("SquaredNorm not yet implemented for CUDA");
+#else
+  fx.v[0] = xs[0]->vec().squaredNorm();
+#endif
+}
+
+void SquaredNorm::backward_impl(const vector<const Tensor*>& xs,
+                                 const Tensor& fx,
+                                 const Tensor& dEdf,
+                                 unsigned i,
+                                 Tensor& dEdxi) const {
+  assert(i < 1);
+#if HAVE_CUDA
+  throw std::runtime_error("SquaredNorm not yet implemented for CUDA");
+#else
+  real scale = dEdf.v[0] * 2;
+  dEdxi.vec().noalias() += scale * xs[0]->vec();
 #endif
 }
 
@@ -1781,8 +2065,8 @@ void LogisticSigmoid::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) 
 #if HAVE_CUDA
   gpu::vlogistic(fx.d.size(), xs[0]->v, fx.v);
 #else
-  auto x = **xs[0];
-  *fx = x.unaryExpr(scalar_logistic_sigmoid_op<float>());
+  auto x = xs[0]->vec();
+  fx.vec() = x.unaryExpr(scalar_logistic_sigmoid_op<float>());
 #endif
 }
 
@@ -1794,7 +2078,7 @@ void LogisticSigmoid::backward_impl(const vector<const Tensor*>& xs,
 #if HAVE_CUDA
   gpu::vlogistic_backward(dEdf.d.size(), fx.v, dEdf.v, dEdxi.v);
 #else
-  *dEdxi += (*fx).binaryExpr(*dEdf, scalar_logistic_sigmoid_backward_op<float>());
+  dEdxi.vec() += fx.vec().binaryExpr(dEdf.vec(), scalar_logistic_sigmoid_backward_op<float>());
 #endif
 }
 
@@ -1803,8 +2087,8 @@ void SoftSign::forward_impl(const vector<const Tensor*>& xs, Tensor& fx) const {
 #ifdef HAVE_CUDA
   throw std::runtime_error("SoftSign not yet implemented for CUDA");
 #else
-  auto x = **xs[0];
-  *fx = x.unaryExpr(FSoftSign());
+  auto x = xs[0]->vec();
+  fx.vec() = x.unaryExpr(FSoftSign());
 #endif
 }
 
@@ -1816,7 +2100,7 @@ void SoftSign::backward_impl(const vector<const Tensor*>& xs,
 #ifdef HAVE_CUDA
   throw std::runtime_error("SoftSign not yet implemented for CUDA");
 #else
-  *dEdxi += (*fx).binaryExpr(*dEdf, FSoftSignBackward());
+  dEdxi.vec() += fx.vec().binaryExpr(dEdf.vec(), FSoftSignBackward());
 #endif
 }
 

@@ -17,6 +17,75 @@ inline bool LooksLikeVector(const Dim& d) {
   return true;
 }
 
+string SparsemaxLoss::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "sparsemax(" << arg_names[0] << ", q)";
+  return s.str();
+}
+
+Dim SparsemaxLoss::dim_forward(const vector<Dim>& xs) const {
+  if (xs.size() != 1 || !LooksLikeVector(xs[0])) {
+    ostringstream s; s << "Bad input dimensions in SparsemaxLoss: " << xs;
+    throw std::invalid_argument(s.str());
+  }
+  return Dim({1});
+}
+
+string Sparsemax::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "sparsemax(" << arg_names[0] << ")";
+  return s.str();
+}
+
+Dim Sparsemax::dim_forward(const vector<Dim>& xs) const {
+  if (xs.size() != 1 || !LooksLikeVector(xs[0])) {
+    ostringstream s; s << "Bad input dimensions in Sparsemax: " << xs;
+    throw std::invalid_argument(s.str());
+  }
+  return xs[0];
+}
+
+string MatrixInverse::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "inverse(" << arg_names[0] << ")";
+  return s.str();
+}
+
+Dim MatrixInverse::dim_forward(const vector<Dim>& xs) const {
+  return xs[0];
+}
+
+Dim LogDet::dim_forward(const vector<Dim>& xs) const {
+    if (xs[0].ndims() > 2 || (xs[0].rows() != xs[0].cols())) {
+        cerr << "Bad arguments in LogDet: " << xs << endl;
+        throw std::invalid_argument("invalid arguments to LogDet");
+    }
+    return Dim({1});
+}
+
+string LogDet::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "logdet(" << arg_names[0] << ")";
+  return s.str();
+}
+
+string AddMv::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "addmv(" << arg_names[0] << ", " << arg_names[1] << ")";
+  return s.str();
+}
+
+Dim AddMv::dim_forward(const vector<Dim>& xs) const {
+  if (xs.size() != 2 ||
+      xs[0].ndims() > 2 ||
+      xs[0].rows() != xs[1].rows() ||
+      xs[1].ndims() != 1) {
+    cerr << "Bad arguments in AddMv: " << xs << endl;
+    throw std::invalid_argument("invalid arguments to AddMv");
+  }
+  return xs[0];
+}
+
 string SelectRows::as_string(const vector<string>& arg_names) const {
   ostringstream s;
   s << "select_rows(" << arg_names[0] << ", {rsize=" << prows->size() << "})";
@@ -461,7 +530,7 @@ Dim Concatenate::dim_forward(const vector<Dim>& xs) const {
     if (LooksLikeVector(c)) c.resize(1);
     new_rows += c[0];
     dr.set(0, c[0]);
-    if (dr != c) {
+    if (dr.single_batch() != c.single_batch()) {
       ostringstream s; s << "Bad input dimensions in Concatenate: " << xs;
       throw std::invalid_argument(s.str());
     }
@@ -808,6 +877,17 @@ Dim PoissonRegressionLoss::dim_forward(const vector<Dim>& xs) const {
     throw std::invalid_argument(s.str());
   }
   return xs[0];
+}
+
+string SquaredNorm::as_string(const vector<string>& arg_names) const {
+  ostringstream s;
+  s << "|| " << arg_names[0] << " ||^2";
+  return s.str();
+}
+
+Dim SquaredNorm::dim_forward(const vector<Dim>& xs) const {
+  assert(xs.size() == 1);
+  return Dim({1}, xs[0].bd);
 }
 
 string SquaredEuclideanDistance::as_string(const vector<string>& arg_names) const {
