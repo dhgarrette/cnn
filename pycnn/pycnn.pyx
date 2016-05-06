@@ -440,7 +440,7 @@ cdef class Expression: #{{{
     cpdef forward(self, recalculate=False):
         if self.cg_version != _cg._cg_version: raise RuntimeError("Stale Expression (created before renewing the Computation Graph).")
         if recalculate: self.cg().forward()
-        else: self.cg().incremental_forward()
+        else: self.cg().inc_forward()
 
     cpdef backward(self):
         if self.cg_version != _cg._cg_version: raise RuntimeError("Stale Expression (created before renewing the Computation Graph).")
@@ -812,6 +812,16 @@ cdef class RNNBuilder: # {{{
         return res
 
     cpdef RNNState initial_state(self,vecs=None):
+        if self.cg_version != _cg.version():
+            self.new_graph()
+            if vecs is not None:
+                self.start_new_sequence(vecs)
+            else:
+                self.start_new_sequence()
+            self._init_state = RNNState(self, -1)
+        return self._init_state
+
+    cpdef RNNState initial_state_from_raw_vectors(self,vecs=None):
         if self.cg_version != _cg.version():
             self.new_graph()
             if vecs is not None:
