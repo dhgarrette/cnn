@@ -1,15 +1,16 @@
 from pycnn import *
 from collections import Counter
 import random
-
+import time
 import util
 
 # format of files: each line is "word<TAB>tag<newline>", blank line is new sentence.
-train_file="/home/yogo/Vork/Research/corpora/pos/WSJ.TRAIN"
-test_file="/home/yogo/Vork/Research/corpora/pos/WSJ.TEST"
+train_file="/u/dhg/temp/WSJ.TRAIN"
+test_file="/u/dhg/temp/WSJ.TEST"
+# train_file="/Users/dhg/Corpora/garrette-low-resource-pos-tagging-data/eng/raw-gold_tagged.txt"
+# test_file="/Users/dhg/Corpora/garrette-low-resource-pos-tagging-data/eng/dev.txt"
 
-
-MLP=True
+MLP=False
 
 def read(fname):
     sent = []
@@ -21,6 +22,14 @@ def read(fname):
         else:
             w,p = line
             sent.append((w,p))
+
+def read_piped(fname):
+    for line in file(fname):
+        sent = []
+        for token in line.strip().split():
+            w,p = token.split('|')
+            sent.append((w,p))
+        yield sent
 
 train=list(read(train_file))
 test=list(read(test_file))
@@ -50,7 +59,7 @@ ntags  = vt.size()
 model = Model()
 sgd = SimpleSGDTrainer(model)
 
-model.add_lookup_parameters("lookup", (nwords, 128))
+model.add_lookup_parameters("word-emb", (nwords, 128))
 model.add_lookup_parameters("tl", (ntags, 30))
 if MLP:
     pH = model.add_parameters("HID", (32, 50*2))
@@ -67,7 +76,7 @@ def build_tagging_graph(words, tags, model, builders):
     renew_cg()
     f_init, b_init = [b.initial_state() for b in builders]
 
-    wembs = [lookup(model["lookup"], w) for w in words]
+    wembs = [lookup(model["word-emb"], w) for w in words]
     wembs = [noise(we,0.1) for we in wembs]
 
     fw = [x.output() for x in f_init.add_inputs(wembs)]
@@ -87,12 +96,29 @@ def build_tagging_graph(words, tags, model, builders):
             r_t = O * f_b
         err = pickneglogsoftmax(r_t, t)
         errs.append(err)
-    return esum(errs)
+    err_sum = esum(errs)
+    
+#     cg().PrintGraphviz()
+    PrintGraphvizPycnn(True,  True, lookup_names_lookups={"word-emb":vw.i2w})
+    PrintGraphvizPycnn(False, True, lookup_names_lookups={"word-emb":vw.i2w})
+    PrintGraphvizPycnn(True,  False, lookup_names_lookups={"word-emb":vw.i2w})
+    PrintGraphvizPycnn(False, False, lookup_names_lookups={"word-emb":vw.i2w})
+    PrintGraphvizPycnn(True,  True)
+    PrintGraphvizPycnn(False, True)
+    PrintGraphvizPycnn(True,  False)
+    PrintGraphvizPycnn(False, False)
+#     PrintGraphvizPycnn(True,   lookup_names_lookups={"word-emb":vw.i2w})
+#     PrintGraphvizPycnn(False,  lookup_names_lookups={"word-emb":vw.i2w})
+#     PrintGraphvizPycnn(True  )
+#     PrintGraphvizPycnn(False )
+    assert False
+    return err_sum
+
 
 def tag_sent(sent, model, builders):
     renew_cg()
     f_init, b_init = [b.initial_state() for b in builders]
-    wembs = [lookup(model["lookup"], vw.w2i.get(w, UNK)) for w,t in sent]
+    wembs = [lookup(model["word-emb"], vw.w2i.get(w, UNK)) for w,t in sent]
 
     fw = [x.output() for x in f_init.add_inputs(wembs)]
     bw = [x.output() for x in b_init.add_inputs(reversed(wembs))]
@@ -119,8 +145,8 @@ for ITER in xrange(50):
     random.shuffle(train)
     for i,s in enumerate(train,1):
         if i % 5000 == 0:
-            sgd.status()
-            print loss / tagged
+            #sgd.status()
+            print time.strftime("%Y-%m-%d"), time.strftime("%H:%M:%S"), 'iter', ITER, 'loss =', loss / tagged
             loss = 0
             tagged = 0
         if i % 10000 == 0:
@@ -131,7 +157,7 @@ for ITER in xrange(50):
                 for go,gu in zip(golds,tags):
                     if go == gu: good +=1 
                     else: bad+=1
-            print good/(good+bad)
+            print time.strftime("%Y-%m-%d"), time.strftime("%H:%M:%S"), 'iter', ITER, 'acc =', good/(good+bad)
         ws = [vw.w2i.get(w, UNK) for w,p in s]
         ps = [vt.w2i[p] for w,p in s]
         sum_errs = build_tagging_graph(ws,ps,model,builders)

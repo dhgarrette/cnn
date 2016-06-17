@@ -29,6 +29,8 @@ set(cnn_library_SRCS
     shadow-params.cc
     tensor.cc
     training.cc
+    dhg-util.cc
+    conll-2005.cc
 )
 
 # Headers:
@@ -67,6 +69,8 @@ set(cnn_library_HDRS
     tensor.h
     timing.h
     training.h
+    dhg-util.h
+    conll-2005.h
 )
 
 if(WITH_CUDA_BACKEND)

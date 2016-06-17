@@ -4,7 +4,7 @@ from pycnn import *
 xsent = False
 
 HIDDEN_SIZE = 8
-ITERATIONS = 2000
+ITERATIONS = 50
 
 m = Model()
 sgd = SimpleSGDTrainer(m)
@@ -18,6 +18,11 @@ W = parameter(m["W"])
 b = parameter(m["b"])
 V = parameter(m["V"])
 a = parameter(m["a"])
+
+print W.value()
+print b.value()
+print V.value()
+print a.value()
 
 x = vecInput(2)
 y = scalarInput(0)
@@ -53,7 +58,7 @@ for iter in xrange(ITERATIONS):
 x.set([F,T])
 z = -(-y_pred)
 print z.scalar_value()
-#print y_pred.scalar()
+print y_pred.scalar_value()
 
 renew_cg()
 W = parameter(m["W"])
@@ -62,8 +67,7 @@ V = parameter(m["V"])
 a = parameter(m["a"])
 
 x = vecInput(2)
-y = scalarInput(0)
-h = tanh((W*x) + b)
+h = tanh(affine_transform([b,W,x]))
 if xsent:
     y_pred = logistic((V*h) + a)
 else:
@@ -77,3 +81,7 @@ print "TT",y_pred.scalar_value()
 x.set([F,T])
 print "FT",y_pred.scalar_value()
 
+# for x in dir(h.c()): print x
+
+# cg().PrintGraphviz()
+# PrintGraphvizPycnn()

@@ -2,6 +2,7 @@ from setuptools import setup
 from setuptools.extension import Extension
 import os
 from Cython.Distutils import build_ext
+import os
 
 
 # Remove the "-Wstrict-prototypes" compiler option, which isn't valid for C++.
@@ -14,9 +15,9 @@ ext = Extension(
         "pycnn",                 # name of extension
         ["pycnn.pyx"],           # filename of our Pyrex/Cython source
         language="c++",              # this causes Pyrex/Cython to create C++ source
-        include_dirs=["../../cnn/",
-                      "../../eigen/"],
-                      #os.path.join(os.getenv("BOOST_ROOT"), "include")],
+        include_dirs=["/u/dhg/workspace/cnn/", # this is the location of the main cnn directory.
+                      "/u/dhg/workspace/eigen/", # this is the directory where eigen is saved.
+                      os.path.join(os.getenv("BOOST_ROOT"), "include")],
         libraries=['cnn_shared'],             # ditto
         library_dirs=["."],
         #extra_link_args=["-L/home/yogo/Vork/Research/cnn/cnn/build/cnn"],       # if needed
